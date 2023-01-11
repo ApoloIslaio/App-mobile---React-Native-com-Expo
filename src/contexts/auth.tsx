@@ -1,26 +1,36 @@
 import React, { createContext, useState, useEffect, useContext } from "react";
 import { View, ActivityIndicator } from 'react-native'
-import * as auth from '../services/auth'
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { gql, useMutation } from "@apollo/client";
+
 
 interface User {
-  name: string;
-  email: string;
+    colaborador: ({
+      id: String;
+      login: String;
+      nome: String;
+      email: String;
+      apelido: String;
+      buscaValorDia: number;
+      buscaValorSemana: number;
+      buscaValorMes: number;
+    })
 }
 
 interface AuthContextData {
   signed: boolean;
   user: User | null;
-  signIn(): Promise<void>;
+  signIn(username: string, password: string): Promise<void>;
   signOut(): void
 }
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
 
+
 export const AuthProvider = ({children}: { children: JSX.Element }) => {
 
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true) 
+  const [loading1, setLoading1] = useState(true) 
 
   useEffect(() => {
     async function loadStorageData(){
@@ -29,31 +39,84 @@ export const AuthProvider = ({children}: { children: JSX.Element }) => {
 
       if(StoragedUser && StoragedToken){
         setUser(JSON.parse(StoragedUser));
-        setLoading(false)
+        setLoading1(false)
+        console.log('UserStoraged aqui: ', JSON.parse(StoragedUser))
+        console.log('StoragedToken aqui: ', StoragedToken)
       }
-      setLoading(false)
+      setLoading1(false)
     }
 
     loadStorageData()
   }, [])
 
-  async function signIn(){
-    setLoading(true)
-    const response = await auth.signIn();
-    setUser(response.user)
     
-    await AsyncStorage.setItem('@RNAuth:user', JSON.stringify(response.user));
-    await AsyncStorage.setItem('@RNAuth:token', response.token);
-    setLoading(false)
+  const LOGIN_COLABORADOR = gql`
+    mutation ($username: String!, $password: String!) {
+      loginColaborador(input: {
+        credentials: {
+          login: $username,
+          password: $password
+        }
+      }) 
+      {
+        token
+        colaborador{
+          id
+          nome
+          email
+          apelido
+        }
+      }
+    }
+  `
+
+  const [loginColaborador, { error, loading }] = useMutation(LOGIN_COLABORADOR)
+
+  const signIn = async (username: string, password: string) => {
+    
+      setLoading1(true)
+      
+    
+      console.log('Entrou aqui')
+       try {
+        console.log('Agora está aqui')
+         
+        const result = await loginColaborador({
+          variables: {
+            username,
+            password
+          }
+        });
+         const response = result.data;
+         console.log('Result',result)
+
+         console.log('Chegou aqui')
+         if(response){
+            console.log('Entrou no if')
+             setUser(response.loginColaborador);
+            console.log('Res',response.loginColaborador)
+            await AsyncStorage.setItem('@RNAuth:user', JSON.stringify(response.loginColaborador));
+            await AsyncStorage.setItem('@RNAuth:token', response.loginColaborador.token);
+            console.log('user', user)   
+           console.log('terminou o if')
+           setLoading1(false);
+         }  
+       } catch (err) {
+         console.log('ERROS: ', err)
+         console.error('graphql errors ', error)
+         setLoading1(false);
+       }
+       setLoading1(false);
 
   }
+
   function signOut(){
     AsyncStorage.clear().then(() => {
       setUser(null);
     })
   }
 
-  if(loading){
+  if(loading1){
     return (
       <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
         <ActivityIndicator size="large" color="#000" />
@@ -69,7 +132,7 @@ export const AuthProvider = ({children}: { children: JSX.Element }) => {
 }
 
 export function useAuth(){
-  const context = useContext(AuthContext)
+  const context = useContext(AuthContext);
 
-  return context
+  return context;
 }

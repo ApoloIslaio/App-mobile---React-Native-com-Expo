@@ -5,7 +5,7 @@ import {useAuth} from '../contexts/auth';
 
 const Routes: React.FC = () => {
   const {signed} = useAuth()
-
+  console.log('SIGNED ',signed);
   return signed ? <AppRoutes /> : <AuthRoutes />
 }
 
